@@ -173,6 +173,10 @@ func certificatesPost(d *Daemon, r *http.Request) Response {
 
 	fingerprint := shared.CertFingerprint(cert)
 
+	if d.clientCerts == nil {
+		d.clientCerts = map[string]x509.Certificate{}
+	}
+
 	if !isClusterNotification(r) {
 		// Store the certificate in the cluster database.
 		existingCerts, err := d.cluster.CertificatesGet()
@@ -189,6 +193,7 @@ func certificatesPost(d *Daemon, r *http.Request) Response {
 		if err != nil {
 			return SmartError(err)
 		}
+		d.clientCerts[shared.CertFingerprint(cert)] = *cert
 
 		// Notify other nodes about the new certificate.
 		notifier, err := cluster.NewNotifier(
@@ -208,13 +213,9 @@ func certificatesPost(d *Daemon, r *http.Request) Response {
 		if err != nil {
 			return SmartError(err)
 		}
+	} else {
+		d.clientCerts[shared.CertFingerprint(cert)] = *cert
 	}
-
-	if d.clientCerts == nil {
-		d.clientCerts = map[string]x509.Certificate{}
-	}
-
-	d.clientCerts[shared.CertFingerprint(cert)] = *cert
 
 	return SyncResponseLocation(true, nil, fmt.Sprintf("/%s/certificates/%s", version.APIVersion, fingerprint))
 }
